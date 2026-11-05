@@ -1,0 +1,139 @@
+name: splitease
+
+x-app-env: &app-env
+  NODE_ENV: production
+  PORT: 3000
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  TRUST_PROXY: ${TRUST_PROXY:-1}
+  CORS_ORIGINS: ${CORS_ORIGINS:-*}
+  MONGO_URI: mongodb://mongo:27017/splitease
+  REDIS_URL: redis://redis:6379
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me-0123456789abcdef}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me-0123456789abcdef}
+  ACCESS_TOKEN_TTL_SECONDS: 900
+  REFRESH_TOKEN_TTL_SECONDS: 604800
+  BCRYPT_SALT_ROUNDS: 10
+  LOGIN_RATE_LIMIT_MAX: 5
+  LOGIN_RATE_LIMIT_WINDOW_SECONDS: 60
+  BALANCE_CACHE_TTL_SECONDS: 86400
+  BALANCE_STALE_RECOMPUTE_SECONDS: 60
+  SMTP_HOST: mailpit
+  SMTP_PORT: 1025
+  MAIL_FROM: 'SplitEase <no-reply@splitease.local>'
+  EXPORT_DIR: /app/exports
+  WORKER_POOL_SIZE: 2
+  WORKER_TASK_TIMEOUT_MS: 60000
+  RABBITMQ_PREFETCH: 10
+  CONSUMER_MAX_RETRIES: 3
+  CONSUMER_RETRY_DELAY_MS: 5000
+  SHUTDOWN_TIMEOUT_MS: 15000
+  SWAGGER_ENABLED: 'true'
+
+x-app-depends: &app-depends
+  mongo:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  mailpit:
+    condition: service_started
+
+services:
+  api:
+    build: .
+    image: splitease:latest
+    environment: *app-env
+    ports:
+      - '${API_PORT:-3000}:3000'
+    volumes:
+      - exports-data:/app/exports
+    depends_on: *app-depends
+    restart: unless-stopped
+    stop_grace_period: 20s
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  consumer:
+    build: .
+    image: splitease:latest
+    command: ['node', 'dist/consumer.js']
+    environment: *app-env
+    volumes:
+      - exports-data:/app/exports
+    depends_on:
+      <<: *app-depends
+      api:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  mongo:
+    image: mongo:7
+    ports:
+      - '${MONGO_HOST_PORT:-27017}:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.runCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '${REDIS_HOST_PORT:-6379}:6379'
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - '${RABBITMQ_HOST_PORT:-5672}:5672'
+      - '${RABBITMQ_UI_PORT:-15672}:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - '${SMTP_HOST_PORT:-1025}:1025'
+      - '${MAILPIT_UI_PORT:-8025}:8025'
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  redis-data:
+  rabbitmq-data:
+  exports-data:

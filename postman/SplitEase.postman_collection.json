@@ -1,0 +1,2372 @@
+{
+  "info": {
+    "name": "SplitEase API",
+    "description": "Splitwise-style group expense sharing. All amounts are integers in **paise** (INR only).\n\n**Headers**: every `/api/v1` route needs `device_id`, `device_type` (1 Android, 2 iOS, 3 Web), `timezone` (IANA) and `lang` (`en`).\n\n**Auth**: register / login / refresh return tokens only in the `x-access-token` and `x-refresh-token` response headers. \nSend `Authorization: Bearer <access>` on protected routes and `x-refresh-token` only to `POST /auth/refresh`.\n\n**Envelopes**: success `{ statusCode, message, data }`, error `{ statusCode, code, message, requestId, details? }`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "deviceId",
+      "value": "postman-device-1"
+    },
+    {
+      "key": "deviceType",
+      "value": "3"
+    },
+    {
+      "key": "timezone",
+      "value": "Asia/Kolkata"
+    },
+    {
+      "key": "lang",
+      "value": "en"
+    },
+    {
+      "key": "email",
+      "value": "aman@example.com"
+    },
+    {
+      "key": "password",
+      "value": "Secret@123"
+    },
+    {
+      "key": "memberEmail",
+      "value": "rahul@example.com"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "myUserId",
+      "value": ""
+    },
+    {
+      "key": "memberUserId",
+      "value": ""
+    },
+    {
+      "key": "groupId",
+      "value": ""
+    },
+    {
+      "key": "expenseId",
+      "value": ""
+    },
+    {
+      "key": "exportId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Dependency health (no auth, no device headers)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Create an account and log in (tokens in response headers)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.user) pm.collectionVariables.set('myUserId', payload.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aman\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Log in (5 tries / minute per email + IP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.user) pm.collectionVariables.set('myUserId', payload.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Logging in again on the same device_id replaces that device's previous session."
+          }
+        },
+        {
+          "name": "Rotate tokens (send x-refresh-token header)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "x-refresh-token",
+                "value": "{{refreshToken}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Issues a new pair and invalidates the old refresh token. Re-using an old refresh token revokes the session (401 REFRESH_TOKEN_REUSED)."
+          }
+        },
+        {
+          "name": "List active devices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sessions"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "My profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update my name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aman Verma\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Find a user by exact email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.user) pm.collectionVariables.set('memberUserId', payload.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{memberEmail}}",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "My groups with my balance in each",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "disabled": true
+                },
+                {
+                  "key": "order",
+                  "value": "desc",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create a group (creator becomes a member)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.group) pm.collectionVariables.set('groupId', payload.group.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Goa Trip\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Group details and members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rename the group",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Goa Trip 2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add a member by email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "members"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{memberEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "List expenses (search, filters, sort, pagination)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "expenseDate",
+                  "disabled": true
+                },
+                {
+                  "key": "order",
+                  "value": "desc",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Full-text search on description",
+                  "disabled": true
+                },
+                {
+                  "key": "paidBy",
+                  "value": "66f1c0ffee00000000000001",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-10-01",
+                  "description": "Inclusive, YYYY-MM-DD in your timezone",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-10-31",
+                  "description": "Inclusive, YYYY-MM-DD in your timezone",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add an expense (EQUAL, EXACT or PERCENT split) (equal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.expense) pm.collectionVariables.set('expenseId', payload.expense.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Dinner\",\n  \"amount\": 120000,\n  \"paidBy\": \"{{myUserId}}\",\n  \"splitType\": \"EQUAL\",\n  \"participants\": [\n    \"{{myUserId}}\",\n    \"{{memberUserId}}\"\n  ],\n  \"expenseDate\": \"2026-10-28\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add an expense (EQUAL, EXACT or PERCENT split) (exact)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.expense) pm.collectionVariables.set('expenseId', payload.expense.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Hotel\",\n  \"amount\": 900000,\n  \"paidBy\": \"{{memberUserId}}\",\n  \"splitType\": \"EXACT\",\n  \"splits\": [\n    {\n      \"userId\": \"{{myUserId}}\",\n      \"share\": 500000\n    },\n    {\n      \"userId\": \"{{memberUserId}}\",\n      \"share\": 400000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add an expense (EQUAL, EXACT or PERCENT split) (percent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.expense) pm.collectionVariables.set('expenseId', payload.expense.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Cab\",\n  \"amount\": 50000,\n  \"paidBy\": \"{{myUserId}}\",\n  \"splitType\": \"PERCENT\",\n  \"splits\": [\n    {\n      \"userId\": \"{{myUserId}}\",\n      \"percent\": 33.33\n    },\n    {\n      \"userId\": \"{{memberUserId}}\",\n      \"percent\": 66.67\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "One expense with its splits",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses/{{expenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses",
+                "{{expenseId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Edit an expense (splits re-validated) (rename)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses/{{expenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses",
+                "{{expenseId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Dinner at Thalassa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Any subset of fields. Changing only `amount` re-splits EQUAL / PERCENT expenses automatically; EXACT expenses need new `splits`."
+          }
+        },
+        {
+          "name": "Edit an expense (splits re-validated) (amount)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses/{{expenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses",
+                "{{expenseId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 150000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Any subset of fields. Changing only `amount` re-splits EQUAL / PERCENT expenses automatically; EXACT expenses need new `splits`."
+          }
+        },
+        {
+          "name": "Edit an expense (splits re-validated) (resplit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses/{{expenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses",
+                "{{expenseId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Hotel\",\n  \"amount\": 900000,\n  \"paidBy\": \"{{memberUserId}}\",\n  \"splitType\": \"EXACT\",\n  \"splits\": [\n    {\n      \"userId\": \"{{myUserId}}\",\n      \"share\": 500000\n    },\n    {\n      \"userId\": \"{{memberUserId}}\",\n      \"share\": 400000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Any subset of fields. Changing only `amount` re-splits EQUAL / PERCENT expenses automatically; EXACT expenses need new `splits`."
+          }
+        },
+        {
+          "name": "Soft delete an expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/expenses/{{expenseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "expenses",
+                "{{expenseId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Balances",
+      "item": [
+        {
+          "name": "Net balance per member (Redis cache; stale = recalculation queued)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/balances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "balances"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Fewest payments to settle the group (computed in a worker thread)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/settle-plan",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "settle-plan"
+              ]
+            }
+          }
+        },
+        {
+          "name": "My totals across all groups",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/balances/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "balances",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settlements",
+      "item": [
+        {
+          "name": "Settlement history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/settlements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "settlements"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "disabled": true
+                },
+                {
+                  "key": "order",
+                  "value": "desc",
+                  "disabled": true
+                },
+                {
+                  "key": "userId",
+                  "value": "66f1c0ffee00000000000001",
+                  "description": "Only settlements involving this user",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Record a payment between two members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/settlements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "settlements"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{memberUserId}}\",\n  \"amount\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activity",
+      "item": [
+        {
+          "name": "My activity feed, newest first",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "activity"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "disabled": true
+                },
+                {
+                  "key": "order",
+                  "value": "desc",
+                  "disabled": true
+                },
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exports",
+      "item": [
+        {
+          "name": "Request a CSV export of the group history (202)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.exportId) pm.collectionVariables.set('exportId', payload.exportId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/exports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "exports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Poll export status and progress",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exports/{{exportId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "exports",
+                "{{exportId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download the CSV (404 until DONE)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 1500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exports/{{exportId}}/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "exports",
+                "{{exportId}}",
+                "download"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Remove a member (only if their balance is 0)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('removed, or 409 while their balance is not settled', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/{{groupId}}/members/{{memberUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                "{{groupId}}",
+                "members",
+                "{{memberUserId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "End this device's session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Log in again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};",
+                  "if (payload.user) pm.collectionVariables.set('myUserId', payload.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Logging in again on the same device_id replaces that device's previous session."
+          }
+        },
+        {
+          "name": "End every session of this user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const access = pm.response.headers.get('x-access-token');",
+                  "const refresh = pm.response.headers.get('x-refresh-token');",
+                  "if (access) pm.collectionVariables.set('accessToken', access);",
+                  "if (refresh) pm.collectionVariables.set('refreshToken', refresh);",
+                  "pm.test('status is 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "let envelope = {};",
+                  "try { envelope = pm.response.json(); } catch (e) {}",
+                  "const payload = envelope.data || {};"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "device_id",
+                "value": "{{deviceId}}"
+              },
+              {
+                "key": "device_type",
+                "value": "{{deviceType}}"
+              },
+              {
+                "key": "timezone",
+                "value": "{{timezone}}"
+              },
+              {
+                "key": "lang",
+                "value": "{{lang}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout-all"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

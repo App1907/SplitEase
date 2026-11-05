@@ -1,0 +1,61 @@
+{
+  "name": "splitease",
+  "version": "1.0.0",
+  "description": "SplitEase - a Splitwise-style group expense sharing REST API (Express + TypeScript)",
+  "private": true,
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "start:consumer": "node dist/consumer.js",
+    "dev": "tsx watch src/main.ts",
+    "dev:consumer": "tsx watch src/consumer.ts",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postman:generate": "tsx scripts/generate-postman.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.24.7",
+    "nodemailer": "^6.10.1",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.19.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/amqplib": "^0.10.8",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.19.43",
+    "@types/nodemailer": "^6.4.24",
+    "@types/swagger-ui-express": "^4.1.8",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "~5.6",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^4.1.12"
+  }
+}
